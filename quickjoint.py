@@ -21,8 +21,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
 """
-import inkex, os, cmath, simplepath
-
+import inkex, os, cmath, simplepath, simplestyle
 try:
     from subprocess import Popen, PIPE
     bsubprocess = True
@@ -71,6 +70,10 @@ class QuickJoint(inkex.Effect):
                         action="store", type="int", 
                         dest="numtabs", default=1,
                         help="Number of tabs to add")
+        self.OptionParser.add_option("-l", "--numslots",
+                        action="store", type="int", 
+                        dest="numslots", default=1,
+                        help="Number of slots to add")
         self.OptionParser.add_option("-t", "--thickness",
                         action="store", type="float", 
                         dest="thickness", default=3.0,
@@ -83,26 +86,35 @@ class QuickJoint(inkex.Effect):
                         action="store", type="string", 
                         dest="units", default="mm",
                         help="Measurement units")
-        self.OptionParser.add_option("-e", "--edgetabs",
+        self.OptionParser.add_option("-e", "--edgefeatures",
                         action="store", type="inkbool", 
-                        dest="edgetabs", default=False,
+                        dest="edgefeatures", default=False,
                         help="Allow tabs to go right to edges")
         self.OptionParser.add_option("-f", "--flipside",
                         action="store", type="inkbool", 
                         dest="flipside", default=False,
                         help="Flip side of lines that tabs are drawn onto")
+        self.OptionParser.add_option("-a", "--activetab",
+                        action="store", type="string", 
+                        dest="activetab", default='',
+                        help="Tab or slot menus")
                         
     def to_complex(self, line):
+        debugMsg("To complex: ")
+        debugMsg(line)
         return complex(line[0], line[1]) 
+        
     def get_length(self, line):
         polR, polPhi = cmath.polar(line)
         return polR
-    def draw_parallel(self, start, totalDistance, stepDistance):
-        polR, polPhi = cmath.polar(totalDistance)
+        
+    def draw_parallel(self, start, guideLine, stepDistance):
+        polR, polPhi = cmath.polar(guideLine)
         polR = stepDistance
         return (cmath.rect(polR, polPhi) + start)
-    def draw_perpendicular(self, start, totalDistance, stepDistance, invert = False):
-        polR, polPhi = cmath.polar(totalDistance)
+        
+    def draw_perpendicular(self, start, guideLine, stepDistance, invert = False):
+        polR, polPhi = cmath.polar(guideLine)
         polR = stepDistance
         debugMsg(polPhi)
         if invert:  
@@ -112,6 +124,35 @@ class QuickJoint(inkex.Effect):
         debugMsg(polPhi)
         debugMsg(cmath.rect(polR, polPhi))
         return (cmath.rect(polR, polPhi) + start)
+        
+    def draw_box(self, start, guideLine, xDistance, yDistance):
+        polR, polPhi = cmath.polar(guideLine)
+        lines = []
+        lines.append(['M', [start.real, start.imag]])
+        
+        #Horizontal
+        polR = xDistance
+        move = cmath.rect(polR, polPhi) + start
+        lines.append(['L', [move.real, move.imag]])
+        start = move
+        
+        #Vertical
+        polR = yDistance
+        polPhi += (cmath.pi / 2)
+        move = cmath.rect(polR, polPhi) + start
+        lines.append(['L', [move.real, move.imag]])
+        start = move
+        
+        #Horizontal
+        polR = xDistance
+        polPhi += (cmath.pi / 2)
+        move = cmath.rect(polR, polPhi) + start
+        lines.append(['L', [move.real, move.imag]])
+        start = move
+        
+        lines.append(['Z', []])
+        
+        return lines
     
     def draw_tabs(self, path, line):
         #Male tab creation
@@ -140,7 +181,7 @@ class QuickJoint(inkex.Effect):
         debugMsg(path[line - 1])
         debugMsg(path[line])
         
-        if self.edgetabs == False:
+        if self.edgefeatures == False:
             segCount = (self.numtabs * 2) 
             drawValley = False
         else:
@@ -152,7 +193,7 @@ class QuickJoint(inkex.Effect):
         debugMsg("segCount - " + str(segCount))
         
         try:
-            if self.edgetabs:
+            if self.edgefeatures:
                 segLength = self.get_length(distance) / segCount
             else:
                 segLength = self.get_length(distance) / (segCount + 1)
@@ -162,7 +203,7 @@ class QuickJoint(inkex.Effect):
         debugMsg("segLength - " + str(segLength))
         newLines = []
         
-        if self.edgetabs == False:
+        if self.edgefeatures == False:
             start = self.draw_parallel(start, distance, segLength)
             newLines.append(['L', [start.real, start.imag]])
             debugMsg("Initial - " + str(start))
@@ -194,17 +235,62 @@ class QuickJoint(inkex.Effect):
             newLines.append(['Z', []])
         return newLines
         
+    
+    def draw_slots(self, path):
+        #Female slot creation
+        
+        start = self.to_complex(path[0][1])
+        end = self.to_complex(path[1][1])
+        
+        if self.edgefeatures == False:
+            segCount = (self.numslots * 2) 
+        else:
+            segCount = (self.numslots * 2) - 1
+
+        distance = end - start
+        debugMsg(distance)
+        debugMsg("segCount - " + str(segCount))
+        
+        try:
+            if self.edgefeatures:
+                segLength = self.get_length(distance) / segCount
+            else:
+                segLength = self.get_length(distance) / (segCount + 1)
+        except:
+            segLength = self.get_length(distance)
+        
+        debugMsg("segLength - " + str(segLength))
+        newLines = []
+        
+        line_style = simplestyle.formatStyle({ 'stroke': '#000000', 'fill': 'none', 'stroke-width': str(self.unittouu('1px')) })
+                
+        for i in range(segCount):
+            if (self.edgefeatures and (i % 2) == 0) or (not self.edgefeatures and (i % 2)):
+                newLines = self.draw_box(start, distance, segLength, self.thickness)
+                debugMsg(newLines)
+                
+                slot_id = self.uniqueId('slot')
+                g = inkex.etree.SubElement(self.current_layer, 'g', {'id':slot_id})
+                
+                line_atts = { 'style':line_style, 'id':slot_id+'-inner-close-tab', 'd':simplepath.formatPath(newLines) }
+                inkex.etree.SubElement(g, inkex.addNS('path','svg'), line_atts )
+                
+            #Find next point
+            polR, polPhi = cmath.polar(distance)
+            polR = segLength
+            start = cmath.rect(polR, polPhi) + start
+        
     def effect(self):
         self.side  = self.options.side
         self.numtabs  = self.options.numtabs
+        self.numslots  = self.options.numslots
         self.thickness = self.unittouu(str(self.options.thickness) + self.options.units)
         self.kerf = self.unittouu(str(self.options.kerf) + self.options.units)
         self.units = self.options.units
-        self.edgetabs = self.options.edgetabs
+        self.edgefeatures = self.options.edgefeatures
         self.flipside = self.options.flipside
-        #self.length = self.get_line_length();
+        self.activetab = self.options.activetab
         
-
         for id, node in self.selected.iteritems():
             debugMsg(node)
             if node.tag == inkex.addNS('path','svg'):
@@ -216,20 +302,23 @@ class QuickJoint(inkex.Effect):
                 numLines = numlines(p)
                 lineNum = getlinenumber(p, self.side % numLines)
 
+                newPath = []
+                if self.activetab == '"tabpage"':
+                    newPath = self.draw_tabs(p, lineNum)
+                    debugMsg('2')
+                    debugMsg(p[:lineNum])
+                    debugMsg('3')
+                    debugMsg(newPath)
+                    debugMsg('4')
+                    debugMsg( p[lineNum + 1:])
+                    finalPath = p[:lineNum] + newPath + p[lineNum + 1:]
                     
-                newPath = self.draw_tabs(p, lineNum)
+                    debugMsg(finalPath)
+                    
+                    node.set('d',simplepath.formatPath(finalPath))
+                elif self.activetab == '"slotpage"':
+                    newPath = self.draw_slots(p)
                 
-                debugMsg('2')
-                debugMsg(p[:lineNum])
-                debugMsg('3')
-                debugMsg(newPath)
-                debugMsg('4')
-                debugMsg( p[lineNum + 1:])
-                finalPath = p[:lineNum] + newPath + p[lineNum + 1:]
-                
-                debugMsg(finalPath)
-                
-                node.set('d',simplepath.formatPath(finalPath))
 
 if __name__ == '__main__':
     e = QuickJoint()

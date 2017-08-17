@@ -7,16 +7,26 @@
     
     <param name="qjuse" type="description" xml:space="preserve">Select side to add box joint tabs
     </param>
-	<param name="side" type="int" min="0" max="512" _gui-text="Side:">0</param>
-	<param name="numtabs" type="int" min="0" max="512" _gui-text="Number of tabs:">1</param>
-	<param name="thickness" type="float" min="0.0" max="1000.0" _gui-text="Material thickness:">3.0</param>
-	<param name="kerf" type="float" min="0.0" max="1000.0" _gui-text="Laser kerf:">0.14</param>
-    <param name="units" type="enum" _gui-text="Units:">
-        <_item value="mm">mm</_item>
-        <_item value="in">inch</_item>
-        <_item value="px">pixels</_item>
+    <param name="activetab" type="notebook">
+        <page name="tabpage" _gui-text="Tabs">
+            <param name="side" type="int" min="0" max="512" _gui-text="Side:">0</param>
+            <param name="numtabs" type="int" min="1" max="512" _gui-text="Number of tabs:">1</param>
+            
+        </page>
+        <page name="slotpage" _gui-text="Slots">
+            <param name="numslots" type="int" min="1" max="512" _gui-text="Number of slots:">1</param>
+        </page>
     </param>
-    <param name="edgetabs" type="boolean" _gui-text="Tabs on edges">False</param>
+            <param name="thickness" type="float" min="0.0" max="1000.0" _gui-text="Material thickness:">3.0</param>
+            <param name="kerf" type="float" min="0.0" max="1000.0" _gui-text="Laser kerf:">0.14</param>
+    <param name="units" type="enum" _gui-text="Units:">
+        <item value="mm">mm</item>
+        <item value="px">px</item>
+        <item value="pt">pt</item>
+        <item value="in">in</item>
+        <item value="cm">cm</item>
+    </param>
+    <param name="edgefeatures" type="boolean" _gui-text="Features on edges">False</param>
     <param name="flipside" type="boolean" _gui-text="Flip side">False</param>
     <effect needs-live-preview="true">
         <object-type>path</object-type>
