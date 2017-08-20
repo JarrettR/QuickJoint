@@ -138,14 +138,20 @@ class QuickJoint(inkex.Effect):
         
         #Vertical
         polR = yDistance
-        polPhi += (cmath.pi / 2)
+        if self.flipside:  
+            polPhi += (cmath.pi / 2)
+        else:
+            polPhi -= (cmath.pi / 2)
         move = cmath.rect(polR, polPhi) + start
         lines.append(['L', [move.real, move.imag]])
         start = move
         
         #Horizontal
         polR = xDistance
-        polPhi += (cmath.pi / 2)
+        if self.flipside:  
+            polPhi += (cmath.pi / 2)
+        else:
+            polPhi -= (cmath.pi / 2)
         move = cmath.rect(polR, polPhi) + start
         lines.append(['L', [move.real, move.imag]])
         start = move
