@@ -125,14 +125,23 @@ class QuickJoint(inkex.Effect):
         debugMsg(cmath.rect(polR, polPhi))
         return (cmath.rect(polR, polPhi) + start)
         
-    def draw_box(self, start, guideLine, xDistance, yDistance):
+    def draw_box(self, start, guideLine, xDistance, yDistance, kerf):
         polR, polPhi = cmath.polar(guideLine)
+        
+        #Kerf expansion
+        if self.flipside:  
+            start -= cmath.rect(kerf, polPhi)
+            start -= cmath.rect(kerf, polPhi + (cmath.pi / 2))
+        else:
+            start -= cmath.rect(kerf, polPhi)
+            start -= cmath.rect(kerf, polPhi - (cmath.pi / 2))
+            
         lines = []
         lines.append(['M', [start.real, start.imag]])
         
         #Horizontal
         polR = xDistance
-        move = cmath.rect(polR, polPhi) + start
+        move = cmath.rect(polR + (2 * kerf), polPhi) + start
         lines.append(['L', [move.real, move.imag]])
         start = move
         
@@ -142,7 +151,7 @@ class QuickJoint(inkex.Effect):
             polPhi += (cmath.pi / 2)
         else:
             polPhi -= (cmath.pi / 2)
-        move = cmath.rect(polR, polPhi) + start
+        move = cmath.rect(polR  + (2 * kerf), polPhi) + start
         lines.append(['L', [move.real, move.imag]])
         start = move
         
@@ -152,7 +161,7 @@ class QuickJoint(inkex.Effect):
             polPhi += (cmath.pi / 2)
         else:
             polPhi -= (cmath.pi / 2)
-        move = cmath.rect(polR, polPhi) + start
+        move = cmath.rect(polR + (2 * kerf), polPhi) + start
         lines.append(['L', [move.real, move.imag]])
         start = move
         
@@ -272,7 +281,7 @@ class QuickJoint(inkex.Effect):
                 
         for i in range(segCount):
             if (self.edgefeatures and (i % 2) == 0) or (not self.edgefeatures and (i % 2)):
-                newLines = self.draw_box(start, distance, segLength, self.thickness)
+                newLines = self.draw_box(start, distance, segLength, self.thickness, self.kerf)
                 debugMsg(newLines)
                 
                 slot_id = self.uniqueId('slot')
