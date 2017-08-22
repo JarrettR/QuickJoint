@@ -130,18 +130,18 @@ class QuickJoint(inkex.Effect):
         
         #Kerf expansion
         if self.flipside:  
-            start -= cmath.rect(kerf, polPhi)
-            start -= cmath.rect(kerf, polPhi + (cmath.pi / 2))
+            start -= cmath.rect(kerf / 2, polPhi)
+            start -= cmath.rect(kerf / 2, polPhi + (cmath.pi / 2))
         else:
-            start -= cmath.rect(kerf, polPhi)
-            start -= cmath.rect(kerf, polPhi - (cmath.pi / 2))
+            start -= cmath.rect(kerf / 2, polPhi)
+            start -= cmath.rect(kerf / 2, polPhi - (cmath.pi / 2))
             
         lines = []
         lines.append(['M', [start.real, start.imag]])
         
         #Horizontal
         polR = xDistance
-        move = cmath.rect(polR + (2 * kerf), polPhi) + start
+        move = cmath.rect(polR + kerf, polPhi) + start
         lines.append(['L', [move.real, move.imag]])
         start = move
         
@@ -151,7 +151,7 @@ class QuickJoint(inkex.Effect):
             polPhi += (cmath.pi / 2)
         else:
             polPhi -= (cmath.pi / 2)
-        move = cmath.rect(polR  + (2 * kerf), polPhi) + start
+        move = cmath.rect(polR  + kerf, polPhi) + start
         lines.append(['L', [move.real, move.imag]])
         start = move
         
@@ -161,7 +161,7 @@ class QuickJoint(inkex.Effect):
             polPhi += (cmath.pi / 2)
         else:
             polPhi -= (cmath.pi / 2)
-        move = cmath.rect(polR + (2 * kerf), polPhi) + start
+        move = cmath.rect(polR + kerf, polPhi) + start
         lines.append(['L', [move.real, move.imag]])
         start = move
         
