@@ -246,6 +246,11 @@ class QuickJoint(inkex.Effect):
                 newLines.append(['L', [start.real, start.imag]])
                 debugMsg("HillH - " + str(start))
                 
+        if self.edgefeatures == True:
+            start = self.draw_perpendicular(start, distance, self.thickness, self.flipside)
+            newLines.append(['L', [start.real, start.imag]])
+            debugMsg("Final - " + str(start))
+            
         if closePath:
             newLines.append(['Z', []])
         return newLines

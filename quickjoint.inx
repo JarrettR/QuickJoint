@@ -1,11 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <inkscape-extension xmlns="http://www.inkscape.org/namespace/inkscape/extension">
-    <_name>QuickJoint 0.2</_name>
+    <_name>QuickJoint</_name>
     <id>org.inkscape.filter.quickjoint</id>
 	<dependency type="executable" location="extensions">quickjoint.py</dependency>
 	<dependency type="executable" location="extensions">inkex.py</dependency>
     
     <param name="qjuse" type="description" xml:space="preserve">Adding box joint tabs or slots to selected object!
+    </param>
+    <param name="qjver" type="description" xml:space="preserve">Version 0.3
     </param>
     <param name="activetab" type="notebook">
         <page name="tabpage" _gui-text="Tabs">
