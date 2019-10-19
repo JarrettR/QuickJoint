@@ -23,9 +23,14 @@ Mating slots can be generating using a path as a guide.
 
 ## Installation
 
-Copy the two main files, `quickjoint.inx` and `quickjoint.py` into your `Inkscape/share/extensions folder`, where-ever that is. Mine is in `C:\Program Files`.
+To install, in Inkscape, go to `Edit > Preferences > System` and take note of the `User extensions` folder.
 
-This probably requires Inkscape 0.91 or newer. There were some great changes in the last couple versions, old copies of Inkscape should be upgraded regardless!
+
+On my machine, it was `C:\Users\Jarrett\AppData\Roaming\inkscape\extensions`. I had to create the `inkscape\extensions` folders myself, due to the way I'd installed Inkscape.
+
+Copy the two main files, `quickjoint.inx` and `quickjoint.py` into that folder, and restart Inkscape.
+
+This extension requires Inkscape 0.91 or newer. There were some great changes in the last couple versions, old copies of Inkscape should be upgraded regardless!
 
 
 ## Contributing
