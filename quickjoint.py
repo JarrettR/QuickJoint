@@ -238,7 +238,7 @@ class QuickJoint(inkex.Effect):
         debugMsg('segLength - ' + str(segLength))
         newLines = []
         
-        line_style = str(inkex.Style({ 'stroke': '#000000', 'fill': 'none', 'stroke-width': str(self.svg.unittouu('1px')) }))
+        line_style = str(inkex.Style({ 'stroke': '#000000', 'fill': 'none', 'stroke-width': str(self.svg.unittouu('0.1mm')) }))
                 
         for i in range(segCount):
             if (self.edgefeatures and (i % 2) == 0) or (not self.edgefeatures and (i % 2)):
