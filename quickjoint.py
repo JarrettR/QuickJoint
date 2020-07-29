@@ -1,5 +1,6 @@
+
 #!/usr/bin/env python
-"""
+'''
 Copyright (C) 2017 Jarrett Rainier jrainier@gmail.com
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -20,88 +21,44 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
-"""
-import inkex, os, cmath, simplepath, simplestyle
-try:
-    from subprocess import Popen, PIPE
-    bsubprocess = True
-except:
-    bsubprocess = False
+'''
+import inkex, cmath
+from inkex.paths import Path, ZoneClose, Move
+from lxml import etree
     
 debugEn = False    
 def debugMsg(input):
     if debugEn:
-        inkex.debug(input)
+        inkex.utils.debug(input)
     
-def numlines(path):
-    retval = 0
+def linesNumber(path):
+    retval = -1
     for elem in path:
-        if elem[0] == "L" or elem[0] == "V" or elem[0] == "H" or elem[0] == "Z":
-            retval = retval + 1
+        debugMsg('linesNumber')
+        debugMsg(elem)
+        retval = retval + 1
+    debugMsg('Number of lines : ' + str(retval))
     return retval
+
+def to_complex(point):
+    return complex(point.x, point.y)
     
-def getmnumber(path):
-    retval = 0
-    for elem in path:
-        if elem[0] == "M":
-            return retval
-            retval = retval + 1
-    return retval
-    
-def getlinenumber(path, side):
-    current = -1
-    total = 0
-    for elem in path:
-        if elem[0] == "L" or elem[0] == "V" or elem[0] == "H" or elem[0] == "Z":
-            current += 1
-        if current == side:
-            return total
-        total += 1
-    return -1
 
 class QuickJoint(inkex.Effect):
-    def __init__(self):
-        inkex.Effect.__init__(self)
-        self.OptionParser.add_option("-s", "--side",
-                        action="store", type="int", 
-                        dest="side", default=0,
-                        help="Object face to tabify")
-        self.OptionParser.add_option("-n", "--numtabs",
-                        action="store", type="int", 
-                        dest="numtabs", default=1,
-                        help="Number of tabs to add")
-        self.OptionParser.add_option("-l", "--numslots",
-                        action="store", type="int", 
-                        dest="numslots", default=1,
-                        help="Number of slots to add")
-        self.OptionParser.add_option("-t", "--thickness",
-                        action="store", type="float", 
-                        dest="thickness", default=3.0,
-                        help="Material thickness")
-        self.OptionParser.add_option("-k", "--kerf",
-                        action="store", type="float", 
-                        dest="kerf", default=0.14,
-                        help="Measured kerf of cutter")
-        self.OptionParser.add_option("-u", "--units",
-                        action="store", type="string", 
-                        dest="units", default="mm",
-                        help="Measurement units")
-        self.OptionParser.add_option("-e", "--edgefeatures",
-                        action="store", type="inkbool", 
-                        dest="edgefeatures", default=False,
-                        help="Allow tabs to go right to edges")
-        self.OptionParser.add_option("-f", "--flipside",
-                        action="store", type="inkbool", 
-                        dest="flipside", default=False,
-                        help="Flip side of lines that tabs are drawn onto")
-        self.OptionParser.add_option("-a", "--activetab",
-                        action="store", type="string", 
-                        dest="activetab", default='',
-                        help="Tab or slot menus")
+    def add_arguments(self, pars):
+        pars.add_argument('-s', '--side', type=int, default=0, help='Object face to tabify')
+        pars.add_argument('-n', '--numtabs', type=int, default=1, help='Number of tabs to add')
+        pars.add_argument('-l', '--numslots', type=int, default=1, help='Number of slots to add')
+        pars.add_argument('-t', '--thickness', type=float, default=3.0, help='Material thickness')
+        pars.add_argument('-k', '--kerf', type=float, default=0.14, help='Measured kerf of cutter')
+        pars.add_argument('-u', '--units', default='mm', help='Measurement units')
+        pars.add_argument('-e', '--edgefeatures', type=inkex.Boolean, default=False, help='Allow tabs to go right to edges')
+        pars.add_argument('-f', '--flipside', type=inkex.Boolean, default=False, help='Flip side of lines that tabs are drawn onto')
+        pars.add_argument('-a', '--activetab', default='', help='Tab or slot menus')
                         
-    def to_complex(self, line):
-        debugMsg("To complex: ")
-        debugMsg(line)
+    def to_complex(self, command, line):
+        debugMsg('To complex: ' + command + ' ' + str(line))
+       
         return complex(line[0], line[1]) 
         
     def get_length(self, line):
@@ -171,41 +128,34 @@ class QuickJoint(inkex.Effect):
     
     def draw_tabs(self, path, line):
         #Male tab creation
-            
-        if line == 0:
-            #todo: wrap around?
-            #find edge case where this throws
-            #probably an open shape
-            throw()
-        
-        
-        start = self.to_complex(path[line - 1][1]) 
-        
-        #Line is between last and first (closed) nodes
+        start = to_complex(path[line])
+
         closePath = False
-        if path[line][0] == "Z":
-            line = getmnumber(path)
+        #Line is between last and first (closed) nodes
+        end = None
+        if isinstance(path[line+1], ZoneClose):
+            end = to_complex(path[0])
             closePath = True
-            
-        end = self.to_complex(path[line][1])
-        debugMsg(start)
-        debugMsg(end)
-            
-        debugMsg("5-")
-        debugMsg(line)
-        debugMsg(path[line - 1])
-        debugMsg(path[line])
-        
-        if self.edgefeatures == False:
-            segCount = (self.numtabs * 2) 
-            drawValley = False
         else:
+            end = to_complex(path[line+1])
+
+        debugMsg('start')
+        debugMsg(start)
+        debugMsg('end')
+        debugMsg(end)
+   
+        debugMsg('5-')
+
+        if self.edgefeatures:
             segCount = (self.numtabs * 2) - 1
             drawValley = False
-
+        else:
+            segCount = (self.numtabs * 2)
+            drawValley = False
+          
         distance = end - start
-        debugMsg(distance)
-        debugMsg("segCount - " + str(segCount))
+        debugMsg('distance ' + str(distance))
+        debugMsg('segCount ' + str(segCount))
         
         try:
             if self.edgefeatures:
@@ -213,15 +163,21 @@ class QuickJoint(inkex.Effect):
             else:
                 segLength = self.get_length(distance) / (segCount + 1)
         except:
+            debugMsg('in except')
             segLength = self.get_length(distance)
         
-        debugMsg("segLength - " + str(segLength))
+        debugMsg('segLength - ' + str(segLength))
         newLines = []
         
+        # when handling firlt line need to set M back
+        if isinstance(path[line], Move):
+            newLines.append(['M', [start.real, start.imag]])
+
         if self.edgefeatures == False:
+            newLines.append(['L', [start.real, start.imag]])
             start = self.draw_parallel(start, distance, segLength)
             newLines.append(['L', [start.real, start.imag]])
-            debugMsg("Initial - " + str(start))
+            debugMsg('Initial - ' + str(start))
             
         
         for i in range(segCount):
@@ -229,27 +185,27 @@ class QuickJoint(inkex.Effect):
                 #Vertical
                 start = self.draw_perpendicular(start, distance, self.thickness, self.flipside)
                 newLines.append(['L', [start.real, start.imag]])
-                debugMsg("ValleyV - " + str(start))
+                debugMsg('ValleyV - ' + str(start))
                 drawValley = False
                 #Horizontal
                 start = self.draw_parallel(start, distance, segLength)
                 newLines.append(['L', [start.real, start.imag]])
-                debugMsg("ValleyH - " + str(start))
+                debugMsg('ValleyH - ' + str(start))
             else:
                 #Vertical
                 start = self.draw_perpendicular(start, distance, self.thickness, not self.flipside)
                 newLines.append(['L', [start.real, start.imag]])
-                debugMsg("HillV - " + str(start))
+                debugMsg('HillV - ' + str(start))
                 drawValley = True
                 #Horizontal
                 start = self.draw_parallel(start, distance, segLength)
                 newLines.append(['L', [start.real, start.imag]])
-                debugMsg("HillH - " + str(start))
+                debugMsg('HillH - ' + str(start))
                 
         if self.edgefeatures == True:
             start = self.draw_perpendicular(start, distance, self.thickness, self.flipside)
             newLines.append(['L', [start.real, start.imag]])
-            debugMsg("Final - " + str(start))
+            debugMsg('Final - ' + str(start))
             
         if closePath:
             newLines.append(['Z', []])
@@ -258,18 +214,18 @@ class QuickJoint(inkex.Effect):
     
     def draw_slots(self, path):
         #Female slot creation
-        
-        start = self.to_complex(path[0][1])
-        end = self.to_complex(path[1][1])
-        
-        if self.edgefeatures == False:
-            segCount = (self.numslots * 2) 
+
+        start = to_complex(path[0])
+        end = to_complex(path[1])
+
+        if self.edgefeatures:
+            segCount = (self.numslots * 2) - 1 
         else:
-            segCount = (self.numslots * 2) - 1
+            segCount = (self.numslots * 2)
 
         distance = end - start
-        debugMsg(distance)
-        debugMsg("segCount - " + str(segCount))
+        debugMsg('distance ' + str(distance))
+        debugMsg('segCount ' + str(segCount))
         
         try:
             if self.edgefeatures:
@@ -279,21 +235,21 @@ class QuickJoint(inkex.Effect):
         except:
             segLength = self.get_length(distance)
         
-        debugMsg("segLength - " + str(segLength))
+        debugMsg('segLength - ' + str(segLength))
         newLines = []
         
-        line_style = simplestyle.formatStyle({ 'stroke': '#000000', 'fill': 'none', 'stroke-width': str(self.unittouu('1px')) })
+        line_style = str(inkex.Style({ 'stroke': '#000000', 'fill': 'none', 'stroke-width': str(self.svg.unittouu('0.1mm')) }))
                 
         for i in range(segCount):
             if (self.edgefeatures and (i % 2) == 0) or (not self.edgefeatures and (i % 2)):
                 newLines = self.draw_box(start, distance, segLength, self.thickness, self.kerf)
                 debugMsg(newLines)
                 
-                slot_id = self.uniqueId('slot')
-                g = inkex.etree.SubElement(self.current_layer, 'g', {'id':slot_id})
+                slot_id = self.svg.get_unique_id('slot')
+                g = etree.SubElement(self.svg.get_current_layer(), 'g', {'id':slot_id})
                 
-                line_atts = { 'style':line_style, 'id':slot_id+'-inner-close-tab', 'd':simplepath.formatPath(newLines) }
-                inkex.etree.SubElement(g, inkex.addNS('path','svg'), line_atts )
+                line_atts = { 'style':line_style, 'id':slot_id+'-inner-close-tab', 'd':str(Path(newLines)) }
+                etree.SubElement(g, inkex.addNS('path','svg'), line_atts )
                 
             #Find next point
             polR, polPhi = cmath.polar(distance)
@@ -304,26 +260,27 @@ class QuickJoint(inkex.Effect):
         self.side  = self.options.side
         self.numtabs  = self.options.numtabs
         self.numslots  = self.options.numslots
-        self.thickness = self.unittouu(str(self.options.thickness) + self.options.units)
-        self.kerf = self.unittouu(str(self.options.kerf) + self.options.units)
+        self.thickness = self.svg.unittouu(str(self.options.thickness) + self.options.units)
+        self.kerf = self.svg.unittouu(str(self.options.kerf) + self.options.units)
         self.units = self.options.units
         self.edgefeatures = self.options.edgefeatures
         self.flipside = self.options.flipside
         self.activetab = self.options.activetab
         
-        for id, node in self.selected.iteritems():
+        for id, node in self.svg.selected.items():
             debugMsg(node)
+            debugMsg('1')
             if node.tag == inkex.addNS('path','svg'):
-                #p = cubicsuperpath.parsePath(node.get('d'))
-                p = simplepath.parsePath(node.get('d'))
-                
-                debugMsg('1')
+                p = list(node.path.to_superpath().to_segments())
+                debugMsg('2')
                 debugMsg(p)
-                numLines = numlines(p)
-                lineNum = getlinenumber(p, self.side % numLines)
+
+                lines = linesNumber(p)
+                lineNum = self.side % lines
+                debugMsg(lineNum)
 
                 newPath = []
-                if self.activetab == '"tabpage"':
+                if self.activetab == 'tabpage':
                     newPath = self.draw_tabs(p, lineNum)
                     debugMsg('2')
                     debugMsg(p[:lineNum])
@@ -335,11 +292,9 @@ class QuickJoint(inkex.Effect):
                     
                     debugMsg(finalPath)
                     
-                    node.set('d',simplepath.formatPath(finalPath))
-                elif self.activetab == '"slotpage"':
+                    node.set('d',str(Path(finalPath)))
+                elif self.activetab == 'slotpage':
                     newPath = self.draw_slots(p)
-                
 
 if __name__ == '__main__':
-    e = QuickJoint()
-    e.affect()
+    QuickJoint().run()
