@@ -30,7 +30,7 @@ On my machine, it was `C:\Users\Jarrett\AppData\Roaming\inkscape\extensions`. I 
 
 Copy the two main files, `quickjoint.inx` and `quickjoint.py` into that folder, and restart Inkscape.
 
-This extension requires Inkscape 0.91 or newer. There were some great changes in the last couple versions, old copies of Inkscape should be upgraded regardless!
+This extension requires Inkscape 1.0 or newer. There is a legacy version (v0.91 and v0.92 only probably) available in `Releases` on the sidebar.
 
 
 ## Contributing
