@@ -55,7 +55,6 @@ class QuickJoint(inkex.Effect):
         pars.add_argument('-e', '--edgefeatures', type=inkex.Boolean, default=False, help='Allow tabs to go right to edges')
         pars.add_argument('-f', '--flipside', type=inkex.Boolean, default=False, help='Flip side of lines that tabs are drawn onto')
         pars.add_argument('-a', '--activetab', default='', help='Tab or slot menus')
-        pars.add_argument('-i', '--insetkerf', type=inkex.Boolean, default=True, help='Kerf contracts tabs and slots instead of expanding them')
                         
     def to_complex(self, command, line):
         debugMsg('To complex: ' + command + ' ' + str(line))
@@ -86,7 +85,11 @@ class QuickJoint(inkex.Effect):
     def draw_box(self, start, guideLine, xDistance, yDistance, kerf):
         polR, polPhi = cmath.polar(guideLine)
         
-        #Kerf expansion
+        # Kerf is a provided as a positive kerf width. Although tabs
+        # need to be made larger by the width of the kerf, slots need
+        # to be made narrower instead.
+        kerf = -kerf
+
         if self.flipside:  
             start -= cmath.rect(kerf / 2, polPhi)
             start -= cmath.rect(kerf / 2, polPhi + (cmath.pi / 2))
@@ -97,13 +100,13 @@ class QuickJoint(inkex.Effect):
         lines = []
         lines.append(['M', [start.real, start.imag]])
         
-        #Horizontal
+        # Horizontal
         polR = xDistance
         move = cmath.rect(polR + kerf, polPhi) + start
         lines.append(['L', [move.real, move.imag]])
         start = move
         
-        #Vertical
+        # Vertical
         polR = yDistance
         if self.flipside:  
             polPhi += (cmath.pi / 2)
@@ -113,7 +116,7 @@ class QuickJoint(inkex.Effect):
         lines.append(['L', [move.real, move.imag]])
         start = move
         
-        #Horizontal
+        # Horizontal
         polR = xDistance
         if self.flipside:  
             polPhi += (cmath.pi / 2)
@@ -126,9 +129,22 @@ class QuickJoint(inkex.Effect):
         lines.append(['Z', []])
         
         return lines
-    
+
+    def vectorDraw(self, start, lines, vector):
+        start = start + vector
+        lines.append(['L', [start.real, start.imag]])
+        return start
+
     def draw_tabs(self, path, line):
-        #Male tab creation
+
+        # Male tab creation is complicated by kerfs.
+        # I refer to this joint as a sequence of tabs and spaces with vertical runs between.
+        # Lengths of tabs and spaces must be adjusted by a portion of the kerf width.
+        # End tabs and spaces should be adjusted by half a kerf width, center tabs and spaces by a whole kerf width.
+        # Since we always have an odd number of segments, this balances the kerf adjustments.
+
+        # Currently this code works withuot edgefeatures but is off by half a kerf width with edge features turned on.
+
         start = to_complex(path[line])
 
         closePath = False
@@ -149,61 +165,60 @@ class QuickJoint(inkex.Effect):
 
         distance = end - start
 
-        try:
-            if self.edgefeatures:
-                segCount = (self.numtabs * 2) - 1
-                segLength = self.get_length(distance) / segCount
-            else:
-                segCount = (self.numtabs * 2)
-                segLength = self.get_length(distance) / (segCount + 1)
-        except:
-            debugMsg('Exception calculating SegLength')
-            segLength = self.get_length(distance)
+        # Calculate the number of segments in the tabbed line: all tabs plus spaces.
+        if self.edgefeatures:
+            segCount = (self.numtabs * 2) - 1
+        else:
+            segCount = (self.numtabs * 2) + 1
 
-        drawValley = False
-          
         debugMsg('distance ' + str(distance))
         debugMsg('segCount ' + str(segCount))
-        debugMsg('segLength - ' + str(segLength))
-        newLines = []
+
+        # Calculate vectors for the parallel portion of tab, space, and endspace.
+        segment = distance / segCount
+        tabLine = self.draw_parallel(segment, segment, self.kerf)
+        spaceLine = self.draw_parallel(segment, segment, -self.kerf)
+        endspaceLine = self.draw_parallel(segment, segment, - self.kerf/2)
+
+        # Calculate vectors for tabOut and tabIn: perpendicular away and towards baseline
+        tabOut = self.draw_perpendicular(0, distance, self.thickness, not self.flipside)
+        tabIn = self.draw_perpendicular(0, distance, self.thickness, self.flipside)
+
+        # Count just the tabs and spaces without the end spaces (when not edgeFeature)
+        tabSpaceCount = self.numtabs * 2 - 1
         
-        # when handling first line need to set M back
+        # Distance doesn't need kerf adjustment: two parallel lines are the proper
+        # distance apart since they're both affected by the same kerf.
+
+        newLines = []
+        cursor = start
+        debugMsg('Start: ' + str(start))
+        
+        # When handling first line, need to set M back
         if isinstance(path[line], Move):
             newLines.append(['M', [start.real, start.imag]])
-
-        if self.edgefeatures == False:
-            newLines.append(['L', [start.real, start.imag]])
-            start = self.draw_parallel(start, distance, segLength)
-            newLines.append(['L', [start.real, start.imag]])
-            debugMsg('Initial - ' + str(start))
-            
         
-        for i in range(segCount):
-            if drawValley == True:
-                #Vertical
-                start = self.draw_perpendicular(start, distance, self.thickness, self.flipside)
-                newLines.append(['L', [start.real, start.imag]])
-                debugMsg('ValleyV - ' + str(start))
-                drawValley = False
-                #Horizontal
-                start = self.draw_parallel(start, distance, segLength)
-                newLines.append(['L', [start.real, start.imag]])
-                debugMsg('ValleyH - ' + str(start))
+        # If we aren't using edge features, add endspace
+        if self.edgefeatures == False:
+            cursor = self.vectorDraw(cursor, newLines, endspaceLine)
+            debugMsg('Cursor after endspace - ' + str(cursor))
+
+        # Starting on a tab, draw tabSpaceCount tabs and spaces.
+        drawTab = True;
+        for i in range(tabSpaceCount):
+            if drawTab == True:
+                cursor = self.vectorDraw(cursor, newLines, tabOut)
+                cursor = self.vectorDraw(cursor, newLines, tabLine)
+                cursor = self.vectorDraw(cursor, newLines, tabIn)
             else:
-                #Vertical
-                start = self.draw_perpendicular(start, distance, self.thickness, not self.flipside)
-                newLines.append(['L', [start.real, start.imag]])
-                debugMsg('HillV - ' + str(start))
-                drawValley = True
-                #Horizontal
-                start = self.draw_parallel(start, distance, segLength)
-                newLines.append(['L', [start.real, start.imag]])
-                debugMsg('HillH - ' + str(start))
+                cursor = self.vectorDraw(cursor, newLines, spaceLine)
                 
-        if self.edgefeatures == True:
-            start = self.draw_perpendicular(start, distance, self.thickness, self.flipside)
-            newLines.append(['L', [start.real, start.imag]])
-            debugMsg('Final - ' + str(start))
+            drawTab = ~drawTab
+
+        # If we aren't using edge features, add final endspace
+        if self.edgefeatures == False:
+            cursor = self.vectorDraw(cursor, newLines, endspaceLine)
+            debugMsg('Cursor after endspace - ' + str(cursor))
             
         if closePath:
             newLines.append(['Z', []])
@@ -264,12 +279,7 @@ class QuickJoint(inkex.Effect):
         self.edgefeatures = self.options.edgefeatures
         self.flipside = self.options.flipside
         self.activetab = self.options.activetab
-        self.insetkerf = self.options.insetkerf
 
-        # Should kerf expand or contract slot size? inset = slot is contracted; kerf is subtracted from box
-        if self.insetkerf:
-            self.kerf = self.kerf * -1
-            
         for id, node in self.svg.selected.items():
             debugMsg(node)
             debugMsg('1')
