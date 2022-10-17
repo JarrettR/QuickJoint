@@ -153,7 +153,7 @@ class QuickJoint(inkex.Effect):
         else:
             end = to_complex(path[line+1])
 
-        debugMsg('start: ' + str(start) + "; snd: " + str(end))
+        debugMsg('start: ' + str(start) + "; end: " + str(end))
 
         distance = end - start
 
