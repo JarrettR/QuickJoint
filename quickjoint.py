@@ -147,26 +147,23 @@ class QuickJoint(inkex.Effect):
    
         debugMsg('5-')
 
-        if self.edgefeatures:
-            segCount = (self.numtabs * 2) - 1
-            drawValley = False
-        else:
-            segCount = (self.numtabs * 2)
-            drawValley = False
-          
         distance = end - start
-        debugMsg('distance ' + str(distance))
-        debugMsg('segCount ' + str(segCount))
-        
+
         try:
             if self.edgefeatures:
+                segCount = (self.numtabs * 2) - 1
                 segLength = self.get_length(distance) / segCount
             else:
+                segCount = (self.numtabs * 2)
                 segLength = self.get_length(distance) / (segCount + 1)
         except:
-            debugMsg('in except')
+            debugMsg('Exception calculating SegLength')
             segLength = self.get_length(distance)
-        
+
+        drawValley = False
+          
+        debugMsg('distance ' + str(distance))
+        debugMsg('segCount ' + str(segCount))
         debugMsg('segLength - ' + str(segLength))
         newLines = []
         
