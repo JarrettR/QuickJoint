@@ -55,6 +55,7 @@ class QuickJoint(inkex.Effect):
         pars.add_argument('-e', '--edgefeatures', type=inkex.Boolean, default=False, help='Allow tabs to go right to edges')
         pars.add_argument('-f', '--flipside', type=inkex.Boolean, default=False, help='Flip side of lines that tabs are drawn onto')
         pars.add_argument('-a', '--activetab', default='', help='Tab or slot menus')
+        pars.add_argument('-i', '--insetkerf', type=inkex.Boolean, default=True, help='Kerf contracts tabs and slots instead of expanding them')
                         
     def to_complex(self, command, line):
         debugMsg('To complex: ' + command + ' ' + str(line))
@@ -169,7 +170,7 @@ class QuickJoint(inkex.Effect):
         debugMsg('segLength - ' + str(segLength))
         newLines = []
         
-        # when handling firlt line need to set M back
+        # when handling first line need to set M back
         if isinstance(path[line], Move):
             newLines.append(['M', [start.real, start.imag]])
 
@@ -266,7 +267,12 @@ class QuickJoint(inkex.Effect):
         self.edgefeatures = self.options.edgefeatures
         self.flipside = self.options.flipside
         self.activetab = self.options.activetab
-        
+        self.insetkerf = self.options.insetkerf
+
+        # Should kerf expand or contract slot size? inset = slot is contracted; kerf is subtracted from box
+        if self.insetkerf:
+            self.kerf = self.kerf * -1
+            
         for id, node in self.svg.selected.items():
             debugMsg(node)
             debugMsg('1')
