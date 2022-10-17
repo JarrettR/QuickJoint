@@ -26,7 +26,7 @@ import inkex, cmath
 from inkex.paths import Path, ZoneClose, Move
 from lxml import etree
     
-debugEn = False    
+debugEn = False
 def debugMsg(input):
     if debugEn:
         inkex.utils.debug(input)
@@ -87,7 +87,7 @@ class QuickJoint(inkex.Effect):
         
         # Kerf is a provided as a positive kerf width. Although tabs
         # need to be made larger by the width of the kerf, slots need
-        # to be made narrower instead.
+        # to be made narrower instead, since the kerf widens them.
         kerf = -kerf
 
         if self.flipside:  
@@ -136,15 +136,12 @@ class QuickJoint(inkex.Effect):
         return start
 
     def draw_tabs(self, path, line):
-
         # Male tab creation is complicated by kerfs.
-        # I refer to this joint as a sequence of tabs and spaces with vertical runs between.
-        # Lengths of tabs and spaces must be adjusted by a portion of the kerf width.
+        # For the tab creation code: the joint is a sequence of tabs and spaces with perpendicular shifts between them.
+        # The lengths of tabs and spaces must be adjusted by a portion of the kerf width, but the depth does not.
+        # Tabs should be longer and spaces should be shorter, since the kerf reduces the width of each tab.
         # End tabs and spaces should be adjusted by half a kerf width, center tabs and spaces by a whole kerf width.
         # Since we always have an odd number of segments, this balances the kerf adjustments.
-
-        # Currently this code works withuot edgefeatures but is off by half a kerf width with edge features turned on.
-
         start = to_complex(path[line])
 
         closePath = False
@@ -156,12 +153,7 @@ class QuickJoint(inkex.Effect):
         else:
             end = to_complex(path[line+1])
 
-        debugMsg('start')
-        debugMsg(start)
-        debugMsg('end')
-        debugMsg(end)
-   
-        debugMsg('5-')
+        debugMsg('start: ' + str(start) + "; snd: " + str(end))
 
         distance = end - start
 
@@ -171,12 +163,13 @@ class QuickJoint(inkex.Effect):
         else:
             segCount = (self.numtabs * 2) + 1
 
-        debugMsg('distance ' + str(distance))
-        debugMsg('segCount ' + str(segCount))
+        debugMsg('distance: ' + str(distance))
+        debugMsg('segCount: ' + str(segCount))
 
         # Calculate vectors for the parallel portion of tab, space, and endspace.
         segment = distance / segCount
         tabLine = self.draw_parallel(segment, segment, self.kerf)
+        endtabLine = self.draw_parallel(segment, segment, self.kerf/2)
         spaceLine = self.draw_parallel(segment, segment, -self.kerf)
         endspaceLine = self.draw_parallel(segment, segment, - self.kerf/2)
 
@@ -184,42 +177,37 @@ class QuickJoint(inkex.Effect):
         tabOut = self.draw_perpendicular(0, distance, self.thickness, not self.flipside)
         tabIn = self.draw_perpendicular(0, distance, self.thickness, self.flipside)
 
-        # Count just the tabs and spaces without the end spaces (when not edgeFeature)
-        tabSpaceCount = self.numtabs * 2 - 1
-        
-        # Distance doesn't need kerf adjustment: two parallel lines are the proper
-        # distance apart since they're both affected by the same kerf.
 
-        newLines = []
-        cursor = start
-        debugMsg('Start: ' + str(start))
-        
         # When handling first line, need to set M back
         if isinstance(path[line], Move):
             newLines.append(['M', [start.real, start.imag]])
+
+        drawTab = self.edgefeatures
+        newLines = []
+        cursor = start
         
-        # If we aren't using edge features, add endspace
-        if self.edgefeatures == False:
-            cursor = self.vectorDraw(cursor, newLines, endspaceLine)
-            debugMsg('Cursor after endspace - ' + str(cursor))
-
-        # Starting on a tab, draw tabSpaceCount tabs and spaces.
-        drawTab = True;
-        for i in range(tabSpaceCount):
-            if drawTab == True:
-                cursor = self.vectorDraw(cursor, newLines, tabOut)
-                cursor = self.vectorDraw(cursor, newLines, tabLine)
-                cursor = self.vectorDraw(cursor, newLines, tabIn)
+        for i in range(segCount):
+            debugMsg("i = " + str(i))
+            if i == 0 or i == segCount - 1:
+                if drawTab == True:
+                    debugMsg("- end tab")
+                    cursor = self.vectorDraw(cursor, newLines, tabOut)
+                    cursor = self.vectorDraw(cursor, newLines, endtabLine)
+                    cursor = self.vectorDraw(cursor, newLines, tabIn)
+                else:
+                    debugMsg("- end space")
+                    cursor = self.vectorDraw(cursor, newLines, endspaceLine)
             else:
-                cursor = self.vectorDraw(cursor, newLines, spaceLine)
-                
-            drawTab = ~drawTab
+                if drawTab == True:
+                    debugMsg("- tab")
+                    cursor = self.vectorDraw(cursor, newLines, tabOut)
+                    cursor = self.vectorDraw(cursor, newLines, tabLine)
+                    cursor = self.vectorDraw(cursor, newLines, tabIn)
+                else:
+                    debugMsg("- space")
+                    cursor = self.vectorDraw(cursor, newLines, spaceLine)
+            drawTab = not drawTab
 
-        # If we aren't using edge features, add final endspace
-        if self.edgefeatures == False:
-            cursor = self.vectorDraw(cursor, newLines, endspaceLine)
-            debugMsg('Cursor after endspace - ' + str(cursor))
-            
         if closePath:
             newLines.append(['Z', []])
         return newLines
