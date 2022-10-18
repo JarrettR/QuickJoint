@@ -26,7 +26,7 @@ import inkex, cmath
 from inkex.paths import Path, ZoneClose, Move
 from lxml import etree
     
-debugEn = False
+debugEn = True
 def debugMsg(input):
     if debugEn:
         inkex.utils.debug(input)
@@ -52,9 +52,10 @@ class QuickJoint(inkex.Effect):
         pars.add_argument('-t', '--thickness', type=float, default=3.0, help='Material thickness')
         pars.add_argument('-k', '--kerf', type=float, default=0.14, help='Measured kerf of cutter')
         pars.add_argument('-u', '--units', default='mm', help='Measurement units')
-        pars.add_argument('-e', '--edgefeatures', type=inkex.Boolean, default=False, help='Allow tabs to go right to edges')
         pars.add_argument('-f', '--flipside', type=inkex.Boolean, default=False, help='Flip side of lines that tabs are drawn onto')
         pars.add_argument('-a', '--activetab', default='', help='Tab or slot menus')
+        pars.add_argument('-S', '--featureStart', type=inkex.Boolean, default=False, help='Tab/slot instead of space on the start edge')
+        pars.add_argument('-E', '--featureEnd', type=inkex.Boolean, default=False, help='Tab/slot instead of space on the end edge')
                         
     def to_complex(self, command, line):
         debugMsg('To complex: ' + command + ' ' + str(line))
@@ -158,11 +159,10 @@ class QuickJoint(inkex.Effect):
         distance = end - start
 
         # Calculate the number of segments in the tabbed line: all tabs plus spaces.
-        if self.edgefeatures:
-            segCount = (self.numtabs * 2) - 1
-        else:
-            segCount = (self.numtabs * 2) + 1
-
+        segCount = self.numtabs * 2 - 1
+        if not self.featureStart: segCount = segCount + 1
+        if not self.featureEnd: segCount = segCount + 1
+        
         debugMsg('distance: ' + str(distance))
         debugMsg('segCount: ' + str(segCount))
 
@@ -177,15 +177,16 @@ class QuickJoint(inkex.Effect):
         tabOut = self.draw_perpendicular(0, distance, self.thickness, not self.flipside)
         tabIn = self.draw_perpendicular(0, distance, self.thickness, self.flipside)
 
+        drawTab = self.featureStart
+        newLines = []
+        cursor = start
 
         # When handling first line, need to set M back
         if isinstance(path[line], Move):
             newLines.append(['M', [start.real, start.imag]])
-
-        drawTab = self.edgefeatures
-        newLines = []
-        cursor = start
-        
+        else:
+            newLines.append(['L', [start.real, start.imag]])
+            
         for i in range(segCount):
             debugMsg("i = " + str(i))
             if i == 0 or i == segCount - 1:
@@ -212,50 +213,41 @@ class QuickJoint(inkex.Effect):
             newLines.append(['Z', []])
         return newLines
         
-    
-    def draw_slots(self, path):
-        #Female slot creation
+    def add_new_path_from_lines(self, lines, line_style):
+        slot_id = self.svg.get_unique_id('slot')
+        g = etree.SubElement(self.svg.get_current_layer(), 'g', {'id':slot_id})
 
+        line_atts = { 'style':line_style, 'id':slot_id+'-inner-close-tab', 'd':str(Path(lines)) }
+        etree.SubElement(g, inkex.addNS('path','svg'), line_atts )
+
+    def draw_slots(self, path):
+        # Female slot creation
         start = to_complex(path[0])
         end = to_complex(path[1])
 
-        if self.edgefeatures:
-            segCount = (self.numslots * 2) - 1 
-        else:
-            segCount = (self.numslots * 2)
-
+        # Total number of segments including all slots and spaces
+        segCount = self.numslots * 2 - 1
+        if not self.featureStart: segCount = segCount + 1
+        if not self.featureEnd: segCount = segCount + 1
+        
         distance = end - start
         debugMsg('distance ' + str(distance))
         debugMsg('segCount ' + str(segCount))
-        
-        try:
-            if self.edgefeatures:
-                segLength = self.get_length(distance) / segCount
-            else:
-                segLength = self.get_length(distance) / (segCount + 1)
-        except:
-            segLength = self.get_length(distance)
-        
+
+        segLength = self.get_length(distance) / segCount
         debugMsg('segLength - ' + str(segLength))
+
+        segVector = distance / segCount
         newLines = []
-        
         line_style = str(inkex.Style({ 'stroke': '#000000', 'fill': 'none', 'stroke-width': str(self.svg.unittouu('0.1mm')) }))
-                
+        drawSlot = self.featureStart
+        cursor = start
         for i in range(segCount):
-            if (self.edgefeatures and (i % 2) == 0) or (not self.edgefeatures and (i % 2)):
-                newLines = self.draw_box(start, distance, segLength, self.thickness, self.kerf)
-                debugMsg(newLines)
-                
-                slot_id = self.svg.get_unique_id('slot')
-                g = etree.SubElement(self.svg.get_current_layer(), 'g', {'id':slot_id})
-                
-                line_atts = { 'style':line_style, 'id':slot_id+'-inner-close-tab', 'd':str(Path(newLines)) }
-                etree.SubElement(g, inkex.addNS('path','svg'), line_atts )
-                
-            #Find next point
-            polR, polPhi = cmath.polar(distance)
-            polR = segLength
-            start = cmath.rect(polR, polPhi) + start
+            if drawSlot:
+                self.add_new_path_from_lines(self.draw_box(cursor, distance, segLength, self.thickness, self.kerf), line_style)
+            cursor = cursor + segVector
+            drawSlot = not drawSlot
+            debugMsg("i: " + str(i) + ", cursor: " + str(cursor))
         
     def effect(self):
         self.side  = self.options.side
@@ -264,7 +256,8 @@ class QuickJoint(inkex.Effect):
         self.thickness = self.svg.unittouu(str(self.options.thickness) + self.options.units)
         self.kerf = self.svg.unittouu(str(self.options.kerf) + self.options.units)
         self.units = self.options.units
-        self.edgefeatures = self.options.edgefeatures
+        self.featureStart = self.options.featureStart
+        self.featureEnd = self.options.featureEnd
         self.flipside = self.options.flipside
         self.activetab = self.options.activetab
 
