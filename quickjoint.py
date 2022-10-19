@@ -26,7 +26,7 @@ import inkex, cmath
 from inkex.paths import Path, ZoneClose, Move
 from lxml import etree
     
-debugEn = True
+debugEn = False
 def debugMsg(input):
     if debugEn:
         inkex.utils.debug(input)
