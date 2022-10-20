@@ -100,7 +100,7 @@ class QuickJoint(inkex.Effect):
         debugMsg("draw_box; lengthEdge: " + str(lengthEdge) + ", heightEdge: " + str(heightEdge))
         
         cursor = self.draw_parallel(start, lengthEdge, kerf/2)
-        cursor = self.draw_perpendicular(cursor, heightEdge, kerf/2)
+        cursor = self.draw_parallel(cursor, heightEdge, kerf/2)
         
         lines = []
         self.move(lines, cursor)
@@ -123,7 +123,7 @@ class QuickJoint(inkex.Effect):
 
     def vectorDraw(self, start, lines, vector):
         start = start + vector
-        self.draw(lines, start)
+        self.line(lines, start)
         return start
 
     def draw_tabs(self, path, line):
@@ -210,25 +210,31 @@ class QuickJoint(inkex.Effect):
         line_atts = { 'style':line_style, 'id':slot_id+'-inner-close-tab', 'd':str(Path(lines)) }
         etree.SubElement(g, inkex.addNS('path','svg'), line_atts )
 
-    def draw_slots(self, path):
-        # Female slot creation
+    def get_segments(self, path):
         start = to_complex(path[0])
         end = to_complex(path[1])
+
+        edge = end - start
 
         # Total number of segments including all slots and spaces
         segCount = self.numslots * 2 - 1
         if not self.featureStart: segCount = segCount + 1
         if not self.featureEnd: segCount = segCount + 1
-        
-        distance = end - start
-        debugMsg('distance ' + str(distance))
-        debugMsg('segCount ' + str(segCount))
+        segVector = edge / segCount
 
-        segVector = distance / segCount
+        debugMsg("get_segments; start=" + str(start) + " segCount=" + str(segCount) + " segVector=" + str(segVector))
+        
+        return (start, segCount, segVector)
+
+    def draw_slots(self, path):
+        # Female slot creation
+
+        cursor, segCount, segVector = self.get_segments(path)
+
         newLines = []
         line_style = str(inkex.Style({ 'stroke': '#000000', 'fill': 'none', 'stroke-width': str(self.svg.unittouu('0.1mm')) }))
         drawSlot = self.featureStart
-        cursor = start
+
         for i in range(segCount):
             if drawSlot:
                 self.add_new_path_from_lines(self.draw_box(cursor, segVector, self.thickness, self.kerf), line_style)
