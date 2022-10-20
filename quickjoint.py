@@ -62,10 +62,6 @@ class QuickJoint(inkex.Effect):
        
         return complex(line[0], line[1]) 
         
-    def get_length(self, line):
-        polR, polPhi = cmath.polar(line)
-        return polR
-        
     def draw_parallel(self, start, guideLine, stepDistance):
         polR, polPhi = cmath.polar(guideLine)
         polR = stepDistance
