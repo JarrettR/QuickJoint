@@ -23,7 +23,7 @@ THE SOFTWARE.
 
 '''
 import inkex, cmath
-from inkex.paths import Path, ZoneClose, Move
+from inkex.paths import Path, ZoneClose, Move, Line, line
 from lxml import etree
     
 debugEn = False
@@ -40,9 +40,37 @@ def linesNumber(path):
     debugMsg('Number of lines : ' + str(retval))
     return retval
 
-def to_complex(point):
-    return complex(point.x, point.y)
-    
+class QuickJointPath (Path):
+    def Move(self, point):
+        '''Append an absolute move instruction to the path, to the specified complex point'''
+        debugMsg("- move: " + str(point))
+        self.append(Move(point.real, point.imag))
+        
+    def Line(self, point):
+        '''Add an absolute line instruction to the path, to the specified complex point'''
+        debugMsg("- line: " + str(point))
+        self.append(Line(point.real, point.imag))
+            
+    def close(self):
+        '''Add a Close Path instriction to the path'''
+        self.append(ZoneClose())
+
+    def line(self, vector):
+        '''Append a relative line command to the path, using the specified vector'''
+        self.append(line(vector.real, vector.imag))
+
+    def get_line(self, n):
+        '''Return the end points of the nth line in the path as complex numbers, as well as whether that line closes the path.'''
+        start = complex(self[n].real, self[n].imag)
+        # If the next point in the path closes the path, go back to the start.
+        end = None
+        closePath = False
+        if isinstance(self[n+1], ZoneClose):
+            end = complex(self[0].real, self[0].imag)
+            closePath = True
+        else:
+            end = complex(self[n+1].real, self[n+1].imag)
+        return (start, end, closePath)
 
 class QuickJoint(inkex.Effect):
     def add_arguments(self, pars):
@@ -57,11 +85,6 @@ class QuickJoint(inkex.Effect):
         pars.add_argument('-S', '--featureStart', type=inkex.Boolean, default=False, help='Tab/slot instead of space on the start edge')
         pars.add_argument('-E', '--featureEnd', type=inkex.Boolean, default=False, help='Tab/slot instead of space on the end edge')
                         
-    def to_complex(self, command, line):
-        debugMsg('To complex: ' + command + ' ' + str(line))
-       
-        return complex(line[0], line[1]) 
-        
     def draw_parallel(self, start, guideLine, stepDistance):
         polR, polPhi = cmath.polar(guideLine)
         polR = stepDistance
@@ -79,13 +102,6 @@ class QuickJoint(inkex.Effect):
         debugMsg(cmath.rect(polR, polPhi))
         return (cmath.rect(polR, polPhi) + start)
 
-    def move(self, lines, point):
-        debugMsg("- move: " + str(point))
-        lines.append(['M', [point.real, point.imag]])
-        
-    def line(self, lines, point):
-        debugMsg("- line: " + str(point))
-        lines.append(['L', [point.real, point.imag]])
         
     def draw_box(self, start, lengthVector, height, kerf):
 
@@ -102,29 +118,25 @@ class QuickJoint(inkex.Effect):
         cursor = self.draw_parallel(start, lengthEdge, kerf/2)
         cursor = self.draw_parallel(cursor, heightEdge, kerf/2)
         
-        lines = []
-        self.move(lines, cursor)
+        path = QuickJointPath()
+        path.Move(cursor)
         
         cursor += lengthEdge
-        self.line(lines, cursor)
+        path.Line(cursor)
         
         cursor += heightEdge
-        self.line(lines, cursor)
+        path.Line(cursor)
         
         cursor -= lengthEdge
-        self.line(lines, cursor)
+        path.Line(cursor)
 
         cursor -= heightEdge
-        self.line(lines, cursor)
+        path.Line(cursor)
         
-        lines.append(['Z', []])
+        path.close()
         
-        return lines
+        return path
 
-    def vectorDraw(self, start, lines, vector):
-        start = start + vector
-        self.line(lines, start)
-        return start
 
     def draw_tabs(self, path, line):
         cursor, segCount, segment, closePath = self.get_segments(path, line, self.numtabs)
@@ -141,32 +153,32 @@ class QuickJoint(inkex.Effect):
         debugMsg("draw_tabs; tabLine=" + str(tabLine) + " spaceLine=" + str(spaceLine) + " segment=" + str(segment))
 
         drawTab = self.featureStart
-        newLines = []
+        newLines = QuickJointPath()
 
-        # When handling first line, need to set M back
+        # First line is a move or line to our start point
         if isinstance(path[line], Move):
-            self.move(newLines, cursor)
+            newLines.Move(cursor)
         else:
-            self.line(newLines, cursor)
+            newLines.Line(cursor)
             
         for i in range(segCount):
             debugMsg("i = " + str(i))
             if drawTab == True:
                 debugMsg("- tab")
-                cursor = self.vectorDraw(cursor, newLines, tabOut)
-                cursor = self.vectorDraw(cursor, newLines, tabLine)
-                cursor = self.vectorDraw(cursor, newLines, tabIn)
+                newLines.line(tabOut)
+                newLines.line(tabLine)
+                newLines.line(tabIn)
             else:
                 if i == 0 or i == segCount - 1:
                     debugMsg("- endspace")
-                    cursor = self.vectorDraw(cursor, newLines, endspaceLine)
+                    newLines.line(endspaceLine)
                 else:
                     debugMsg("- space")
-                    cursor = self.vectorDraw(cursor, newLines, spaceLine)
+                    newLines.line(spaceLine)
             drawTab = not drawTab
 
         if closePath:
-            newLines.append(['Z', []])
+            newLines.close
         return newLines
         
     def add_new_path_from_lines(self, lines, line_style):
@@ -183,17 +195,8 @@ class QuickJoint(inkex.Effect):
         if not self.featureStart: segCount = segCount + 1
         if not self.featureEnd: segCount = segCount + 1
 
-        # Calculate the start and end of the edge we've been told to modify.
-        start = to_complex(path[line])
-        # If the next point in the path closes the path, go back to the start.
-        end = None
-        closePath = False
-        if isinstance(path[line+1], ZoneClose):
-            end = to_complex(path[0])
-            closePath = True
-        else:
-            end = to_complex(path[line+1])
-
+        start, end, closePath = QuickJointPath(path).get_line(line)
+        
         # Calculate the length of each feature prior to kerf compensation.
         # Here we divide the specified edge into equal portions, one for each feature or space.
 
@@ -270,5 +273,8 @@ class QuickJoint(inkex.Effect):
                 elif self.activetab == 'slotpage':
                     newPath = self.draw_slots(p)
 
+
+        
+                    
 if __name__ == '__main__':
     QuickJoint().run()
