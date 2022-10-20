@@ -88,38 +88,33 @@ class QuickJoint(inkex.Effect):
         lines.append(['L', [point.real, point.imag]])
         
     def draw_box(self, start, lengthVector, height, kerf):
-        length, lengthDirection = cmath.polar(lengthVector)
-        heightDirection = lengthDirection - (cmath.pi / 2)
-        if self.flipside: heightDirection = -heightDirection
 
-        debugMsg("draw_box; lengthVector: " + str(lengthVector) + ", kerf: " + str(kerf))
-        
-        cursor = start
         # Kerf is a provided as a positive kerf width. Although tabs
         # need to be made larger by the width of the kerf, slots need
-        # to be made narrower instead, since the kerf widens them.
-        kerf = -kerf
+        # to be made narrower instead, since the cut widens them.
+
+        # Calculate kerfed height and length vectors
+        heightEdge = self.draw_perpendicular(0, lengthVector, height - kerf, self.flipside)
+        lengthEdge = self.draw_parallel(lengthVector, lengthVector, -kerf)
         
-        cursor -= cmath.rect(kerf/2, lengthDirection)
-        cursor -= cmath.rect(kerf/2, heightDirection)
+        debugMsg("draw_box; lengthEdge: " + str(lengthEdge) + ", heightEdge: " + str(heightEdge))
+        
+        cursor = self.draw_parallel(start, lengthEdge, kerf/2)
+        cursor = self.draw_perpendicular(cursor, heightEdge, kerf/2)
         
         lines = []
         self.move(lines, cursor)
         
-        # Slot length
-        cursor += cmath.rect(length + kerf, lengthDirection)
+        cursor += lengthEdge
         self.line(lines, cursor)
         
-        # Slot height
-        cursor += cmath.rect(height  + kerf, heightDirection)
+        cursor += heightEdge
         self.line(lines, cursor)
         
-        # Back slot length
-        cursor += cmath.rect(length + kerf, lengthDirection + cmath.pi)
+        cursor -= lengthEdge
         self.line(lines, cursor)
 
-        # Back Slot height
-        cursor += cmath.rect(height  + kerf, heightDirection + cmath.pi)
+        cursor -= heightEdge
         self.line(lines, cursor)
         
         lines.append(['Z', []])
@@ -128,7 +123,7 @@ class QuickJoint(inkex.Effect):
 
     def vectorDraw(self, start, lines, vector):
         start = start + vector
-        lines.append(['L', [start.real, start.imag]])
+        self.draw(lines, start)
         return start
 
     def draw_tabs(self, path, line):
