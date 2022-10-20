@@ -127,15 +127,18 @@ class QuickJoint(inkex.Effect):
         return start
 
     def draw_tabs(self, path, line):
-        cursor, segCount, segment, closePath = self.get_segments(path, line)
+        cursor, segCount, segment, closePath = self.get_segments(path, line, self.numtabs)
         
         # Calculate kerf-compensated vectors for the parallel portion of tab and space
         tabLine = self.draw_parallel(segment, segment, self.kerf)
         spaceLine = self.draw_parallel(segment, segment, -self.kerf)
+        endspaceLine = segment
 
         # Calculate vectors for tabOut and tabIn: perpendicular away and towards baseline
         tabOut = self.draw_perpendicular(0, segment, self.thickness, not self.flipside)
         tabIn = self.draw_perpendicular(0, segment, self.thickness, self.flipside)
+
+        debugMsg("draw_tabs; tabLine=" + str(tabLine) + " spaceLine=" + str(spaceLine) + " segment=" + str(segment))
 
         drawTab = self.featureStart
         newLines = []
@@ -154,8 +157,12 @@ class QuickJoint(inkex.Effect):
                 cursor = self.vectorDraw(cursor, newLines, tabLine)
                 cursor = self.vectorDraw(cursor, newLines, tabIn)
             else:
-                debugMsg("- space")
-                cursor = self.vectorDraw(cursor, newLines, spaceLine)
+                if i == 0 or i == segCount - 1:
+                    debugMsg("- endspace")
+                    cursor = self.vectorDraw(cursor, newLines, endspaceLine)
+                else:
+                    debugMsg("- space")
+                    cursor = self.vectorDraw(cursor, newLines, spaceLine)
             drawTab = not drawTab
 
         if closePath:
@@ -169,10 +176,10 @@ class QuickJoint(inkex.Effect):
         line_atts = { 'style':line_style, 'id':slot_id+'-inner-close-tab', 'd':str(Path(lines)) }
         etree.SubElement(g, inkex.addNS('path','svg'), line_atts )
 
-    def get_segments(self, path, line):
+    def get_segments(self, path, line, num):
 
         # Calculate number of segments, including all features and spaces
-        segCount = self.numslots * 2 - 1
+        segCount = num * 2 - 1
         if not self.featureStart: segCount = segCount + 1
         if not self.featureEnd: segCount = segCount + 1
 
@@ -204,7 +211,7 @@ class QuickJoint(inkex.Effect):
     def draw_slots(self, path):
         # Female slot creation
 
-        cursor, segCount, segVector, closePath = self.get_segments(path, 0)
+        cursor, segCount, segVector, closePath = self.get_segments(path, 0, self.numslots)
 
         # I'm having a really hard time wording why this is necessary, but it is.
         # get_segments returns a vector based on a narrower edge; adjust that edge to fit within the edge we were given.
