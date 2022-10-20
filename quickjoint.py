@@ -133,49 +133,26 @@ class QuickJoint(inkex.Effect):
         # Tabs should be longer and spaces should be shorter, since the kerf reduces the width of each tab.
         # End tabs and spaces should be adjusted by half a kerf width, center tabs and spaces by a whole kerf width.
         # Since we always have an odd number of segments, this balances the kerf adjustments.
-        start = to_complex(path[line])
-
-        closePath = False
-        #Line is between last and first (closed) nodes
-        end = None
-        if isinstance(path[line+1], ZoneClose):
-            end = to_complex(path[0])
-            closePath = True
-        else:
-            end = to_complex(path[line+1])
-
-        debugMsg('start: ' + str(start) + "; end: " + str(end))
-
-        distance = end - start
-
-        # Calculate the number of segments in the tabbed line: all tabs plus spaces.
-        segCount = self.numtabs * 2 - 1
-        if not self.featureStart: segCount = segCount + 1
-        if not self.featureEnd: segCount = segCount + 1
+        cursor, segCount, segment, closePath = self.get_segments(path, line)
         
-        debugMsg('distance: ' + str(distance))
-        debugMsg('segCount: ' + str(segCount))
-
         # Calculate vectors for the parallel portion of tab, space, and endspace.
-        segment = distance / segCount
         tabLine = self.draw_parallel(segment, segment, self.kerf)
         endtabLine = self.draw_parallel(segment, segment, self.kerf/2)
         spaceLine = self.draw_parallel(segment, segment, -self.kerf)
         endspaceLine = self.draw_parallel(segment, segment, - self.kerf/2)
 
         # Calculate vectors for tabOut and tabIn: perpendicular away and towards baseline
-        tabOut = self.draw_perpendicular(0, distance, self.thickness, not self.flipside)
-        tabIn = self.draw_perpendicular(0, distance, self.thickness, self.flipside)
+        tabOut = self.draw_perpendicular(0, segment, self.thickness, not self.flipside)
+        tabIn = self.draw_perpendicular(0, segment, self.thickness, self.flipside)
 
         drawTab = self.featureStart
         newLines = []
-        cursor = start
 
         # When handling first line, need to set M back
         if isinstance(path[line], Move):
-            newLines.append(['M', [start.real, start.imag]])
+            self.move(newLines, cursor)
         else:
-            newLines.append(['L', [start.real, start.imag]])
+            self.line(newLines, cursor)
             
         for i in range(segCount):
             debugMsg("i = " + str(i))
@@ -210,9 +187,17 @@ class QuickJoint(inkex.Effect):
         line_atts = { 'style':line_style, 'id':slot_id+'-inner-close-tab', 'd':str(Path(lines)) }
         etree.SubElement(g, inkex.addNS('path','svg'), line_atts )
 
-    def get_segments(self, path):
-        start = to_complex(path[0])
-        end = to_complex(path[1])
+    def get_segments(self, path, line):
+        start = to_complex(path[line])
+
+        # Calculate end. If the next point in the path closes the path, go back to the start.
+        end = None
+        closePath = False
+        if isinstance(path[line+1], ZoneClose):
+            end = to_complex(path[0])
+            closePath = True
+        else:
+            end = to_complex(path[line+1])
 
         edge = end - start
 
@@ -224,12 +209,12 @@ class QuickJoint(inkex.Effect):
 
         debugMsg("get_segments; start=" + str(start) + " segCount=" + str(segCount) + " segVector=" + str(segVector))
         
-        return (start, segCount, segVector)
+        return (start, segCount, segVector, closePath)
 
     def draw_slots(self, path):
         # Female slot creation
 
-        cursor, segCount, segVector = self.get_segments(path)
+        cursor, segCount, segVector, closePath = self.get_segments(path, 0)
 
         newLines = []
         line_style = str(inkex.Style({ 'stroke': '#000000', 'fill': 'none', 'stroke-width': str(self.svg.unittouu('0.1mm')) }))
@@ -241,7 +226,8 @@ class QuickJoint(inkex.Effect):
             cursor = cursor + segVector
             drawSlot = not drawSlot
             debugMsg("i: " + str(i) + ", cursor: " + str(cursor))
-        
+        # (We don't modify the path so we don't need to close it)
+
     def effect(self):
         self.side  = self.options.side
         self.numtabs  = self.options.numtabs
