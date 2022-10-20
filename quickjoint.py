@@ -82,50 +82,49 @@ class QuickJoint(inkex.Effect):
         debugMsg(polPhi)
         debugMsg(cmath.rect(polR, polPhi))
         return (cmath.rect(polR, polPhi) + start)
+
+    def move(self, lines, point):
+        debugMsg("- move: " + str(point))
+        lines.append(['M', [point.real, point.imag]])
         
-    def draw_box(self, start, guideLine, xDistance, yDistance, kerf):
-        polR, polPhi = cmath.polar(guideLine)
+    def line(self, lines, point):
+        debugMsg("- line: " + str(point))
+        lines.append(['L', [point.real, point.imag]])
         
+    def draw_box(self, start, lengthVector, height, kerf):
+        length, lengthDirection = cmath.polar(lengthVector)
+        heightDirection = lengthDirection - (cmath.pi / 2)
+        if self.flipside: heightDirection = -heightDirection
+
+        debugMsg("draw_box; lengthVector: " + str(lengthVector) + ", kerf: " + str(kerf))
+        
+        cursor = start
         # Kerf is a provided as a positive kerf width. Although tabs
         # need to be made larger by the width of the kerf, slots need
         # to be made narrower instead, since the kerf widens them.
         kerf = -kerf
-
-        if self.flipside:  
-            start -= cmath.rect(kerf / 2, polPhi)
-            start -= cmath.rect(kerf / 2, polPhi + (cmath.pi / 2))
-        else:
-            start -= cmath.rect(kerf / 2, polPhi)
-            start -= cmath.rect(kerf / 2, polPhi - (cmath.pi / 2))
-            
+        
+        cursor -= cmath.rect(kerf/2, lengthDirection)
+        cursor -= cmath.rect(kerf/2, heightDirection)
+        
         lines = []
-        lines.append(['M', [start.real, start.imag]])
+        self.move(lines, cursor)
         
-        # Horizontal
-        polR = xDistance
-        move = cmath.rect(polR + kerf, polPhi) + start
-        lines.append(['L', [move.real, move.imag]])
-        start = move
+        # Slot length
+        cursor += cmath.rect(length + kerf, lengthDirection)
+        self.line(lines, cursor)
         
-        # Vertical
-        polR = yDistance
-        if self.flipside:  
-            polPhi += (cmath.pi / 2)
-        else:
-            polPhi -= (cmath.pi / 2)
-        move = cmath.rect(polR  + kerf, polPhi) + start
-        lines.append(['L', [move.real, move.imag]])
-        start = move
+        # Slot height
+        cursor += cmath.rect(height  + kerf, heightDirection)
+        self.line(lines, cursor)
         
-        # Horizontal
-        polR = xDistance
-        if self.flipside:  
-            polPhi += (cmath.pi / 2)
-        else:
-            polPhi -= (cmath.pi / 2)
-        move = cmath.rect(polR + kerf, polPhi) + start
-        lines.append(['L', [move.real, move.imag]])
-        start = move
+        # Back slot length
+        cursor += cmath.rect(length + kerf, lengthDirection + cmath.pi)
+        self.line(lines, cursor)
+
+        # Back Slot height
+        cursor += cmath.rect(height  + kerf, heightDirection + cmath.pi)
+        self.line(lines, cursor)
         
         lines.append(['Z', []])
         
@@ -234,9 +233,6 @@ class QuickJoint(inkex.Effect):
         debugMsg('distance ' + str(distance))
         debugMsg('segCount ' + str(segCount))
 
-        segLength = self.get_length(distance) / segCount
-        debugMsg('segLength - ' + str(segLength))
-
         segVector = distance / segCount
         newLines = []
         line_style = str(inkex.Style({ 'stroke': '#000000', 'fill': 'none', 'stroke-width': str(self.svg.unittouu('0.1mm')) }))
@@ -244,7 +240,7 @@ class QuickJoint(inkex.Effect):
         cursor = start
         for i in range(segCount):
             if drawSlot:
-                self.add_new_path_from_lines(self.draw_box(cursor, distance, segLength, self.thickness, self.kerf), line_style)
+                self.add_new_path_from_lines(self.draw_box(cursor, segVector, self.thickness, self.kerf), line_style)
             cursor = cursor + segVector
             drawSlot = not drawSlot
             debugMsg("i: " + str(i) + ", cursor: " + str(cursor))
