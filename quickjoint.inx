@@ -26,7 +26,8 @@
         <item value="in">in</item>
         <item value="cm">cm</item>
     </param>
-    <param name="edgefeatures" type="boolean" _gui-text="Features on edges">False</param>
+    <param name="featureStart" type="boolean" _gui-text="Feature at start">False</param>
+    <param name="featureEnd" type="boolean" _gui-text="Feature at end">False</param>
     <param name="flipside" type="boolean" _gui-text="Flip side">False</param>
     <effect needs-live-preview="true">
         <object-type>path</object-type>
