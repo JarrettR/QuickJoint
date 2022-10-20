@@ -127,19 +127,11 @@ class QuickJoint(inkex.Effect):
         return start
 
     def draw_tabs(self, path, line):
-        # Male tab creation is complicated by kerfs.
-        # For the tab creation code: the joint is a sequence of tabs and spaces with perpendicular shifts between them.
-        # The lengths of tabs and spaces must be adjusted by a portion of the kerf width, but the depth does not.
-        # Tabs should be longer and spaces should be shorter, since the kerf reduces the width of each tab.
-        # End tabs and spaces should be adjusted by half a kerf width, center tabs and spaces by a whole kerf width.
-        # Since we always have an odd number of segments, this balances the kerf adjustments.
         cursor, segCount, segment, closePath = self.get_segments(path, line)
         
-        # Calculate vectors for the parallel portion of tab, space, and endspace.
+        # Calculate kerf-compensated vectors for the parallel portion of tab and space
         tabLine = self.draw_parallel(segment, segment, self.kerf)
-        endtabLine = self.draw_parallel(segment, segment, self.kerf/2)
         spaceLine = self.draw_parallel(segment, segment, -self.kerf)
-        endspaceLine = self.draw_parallel(segment, segment, - self.kerf/2)
 
         # Calculate vectors for tabOut and tabIn: perpendicular away and towards baseline
         tabOut = self.draw_perpendicular(0, segment, self.thickness, not self.flipside)
@@ -156,24 +148,14 @@ class QuickJoint(inkex.Effect):
             
         for i in range(segCount):
             debugMsg("i = " + str(i))
-            if i == 0 or i == segCount - 1:
-                if drawTab == True:
-                    debugMsg("- end tab")
-                    cursor = self.vectorDraw(cursor, newLines, tabOut)
-                    cursor = self.vectorDraw(cursor, newLines, endtabLine)
-                    cursor = self.vectorDraw(cursor, newLines, tabIn)
-                else:
-                    debugMsg("- end space")
-                    cursor = self.vectorDraw(cursor, newLines, endspaceLine)
+            if drawTab == True:
+                debugMsg("- tab")
+                cursor = self.vectorDraw(cursor, newLines, tabOut)
+                cursor = self.vectorDraw(cursor, newLines, tabLine)
+                cursor = self.vectorDraw(cursor, newLines, tabIn)
             else:
-                if drawTab == True:
-                    debugMsg("- tab")
-                    cursor = self.vectorDraw(cursor, newLines, tabOut)
-                    cursor = self.vectorDraw(cursor, newLines, tabLine)
-                    cursor = self.vectorDraw(cursor, newLines, tabIn)
-                else:
-                    debugMsg("- space")
-                    cursor = self.vectorDraw(cursor, newLines, spaceLine)
+                debugMsg("- space")
+                cursor = self.vectorDraw(cursor, newLines, spaceLine)
             drawTab = not drawTab
 
         if closePath:
@@ -188,9 +170,15 @@ class QuickJoint(inkex.Effect):
         etree.SubElement(g, inkex.addNS('path','svg'), line_atts )
 
     def get_segments(self, path, line):
-        start = to_complex(path[line])
 
-        # Calculate end. If the next point in the path closes the path, go back to the start.
+        # Calculate number of segments, including all features and spaces
+        segCount = self.numslots * 2 - 1
+        if not self.featureStart: segCount = segCount + 1
+        if not self.featureEnd: segCount = segCount + 1
+
+        # Calculate the start and end of the edge we've been told to modify.
+        start = to_complex(path[line])
+        # If the next point in the path closes the path, go back to the start.
         end = None
         closePath = False
         if isinstance(path[line+1], ZoneClose):
@@ -199,15 +187,17 @@ class QuickJoint(inkex.Effect):
         else:
             end = to_complex(path[line+1])
 
+        # Calculate the length of each feature prior to kerf compensation.
+        # Here we divide the specified edge into equal portions, one for each feature or space.
+
+        # Because the specified edge has no kerf compensation, the
+        # actual length we end up with will be smaller by a kerf. We
+        # need to use that distance to calculate our segment vector.
         edge = end - start
-
-        # Total number of segments including all slots and spaces
-        segCount = self.numslots * 2 - 1
-        if not self.featureStart: segCount = segCount + 1
-        if not self.featureEnd: segCount = segCount + 1
+        edge = self.draw_parallel(edge, edge, -self.kerf)
         segVector = edge / segCount
-
-        debugMsg("get_segments; start=" + str(start) + " segCount=" + str(segCount) + " segVector=" + str(segVector))
+        
+        debugMsg("get_segments; start=" + str(start) + " end=" + str(end) + " edge=" + str(edge) + " segCount=" + str(segCount) + " segVector=" + str(segVector))
         
         return (start, segCount, segVector, closePath)
 
@@ -215,6 +205,10 @@ class QuickJoint(inkex.Effect):
         # Female slot creation
 
         cursor, segCount, segVector, closePath = self.get_segments(path, 0)
+
+        # I'm having a really hard time wording why this is necessary, but it is.
+        # get_segments returns a vector based on a narrower edge; adjust that edge to fit within the edge we were given.
+        cursor = self.draw_parallel(cursor, segVector, self.kerf/2)
 
         newLines = []
         line_style = str(inkex.Style({ 'stroke': '#000000', 'fill': 'none', 'stroke-width': str(self.svg.unittouu('0.1mm')) }))
