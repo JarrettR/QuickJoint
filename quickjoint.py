@@ -61,15 +61,16 @@ class QuickJointPath (Path):
 
     def get_line(self, n):
         '''Return the end points of the nth line in the path as complex numbers, as well as whether that line closes the path.'''
-        start = complex(self[n].real, self[n].imag)
+
+        start = complex(self[n].x, self[n].y)
         # If the next point in the path closes the path, go back to the start.
         end = None
         closePath = False
         if isinstance(self[n+1], ZoneClose):
-            end = complex(self[0].real, self[0].imag)
+            end = complex(self[0].x, self[0].y)
             closePath = True
         else:
-            end = complex(self[n+1].real, self[n+1].imag)
+            end = complex(self[n+1].x, self[n+1].y)
         return (start, end, closePath)
 
 class QuickJoint(inkex.Effect):
