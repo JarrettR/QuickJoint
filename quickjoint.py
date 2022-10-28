@@ -1,5 +1,5 @@
 
-#!/usr/bin/env python
+#!/usr/bin/env python3
 '''
 Copyright (C) 2017 Jarrett Rainier jrainier@gmail.com
 
@@ -23,7 +23,7 @@ THE SOFTWARE.
 
 '''
 import inkex, cmath
-from inkex.paths import Path, ZoneClose, Move, Line, line
+from inkex.paths import Path, ZoneClose, Move, Line, line, Curve
 from lxml import etree
     
 debugEn = False
@@ -62,7 +62,10 @@ class QuickJointPath (Path):
     def get_line(self, n):
         '''Return the end points of the nth line in the path as complex numbers, as well as whether that line closes the path.'''
 
-        start = complex(self[n].x, self[n].y)
+        if isinstance(self[n], (Move, Line, ZoneClose)):
+            start = complex(self[n].x, self[n].y)
+        elif isinstance(self[n], Curve):
+            start = complex(self[n].x4, self[n].y4)
         # If the next point in the path closes the path, go back to the start.
         end = None
         closePath = False
@@ -70,10 +73,13 @@ class QuickJointPath (Path):
             end = complex(self[0].x, self[0].y)
             closePath = True
         else:
-            end = complex(self[n+1].x, self[n+1].y)
+            if isinstance(self[n+1], (Move, Line, ZoneClose)):
+                end = complex(self[n+1].x, self[n+1].y)
+            elif isinstance(self[n+1], Curve):
+                end = complex(self[n+1].x4, self[n+1].y4)
         return (start, end, closePath)
 
-class QuickJoint(inkex.Effect):
+class QuickJoint(inkex.EffectExtension):
     def add_arguments(self, pars):
         pars.add_argument('-s', '--side', type=int, default=0, help='Object face to tabify')
         pars.add_argument('-n', '--numtabs', type=int, default=1, help='Number of tabs to add')
@@ -141,7 +147,7 @@ class QuickJoint(inkex.Effect):
 
     def draw_tabs(self, path, line):
         cursor, segCount, segment, closePath = self.get_segments(path, line, self.numtabs)
-        
+
         # Calculate kerf-compensated vectors for the parallel portion of tab and space
         tabLine = self.draw_parallel(segment, segment, self.kerf)
         spaceLine = self.draw_parallel(segment, segment, -self.kerf)
@@ -156,7 +162,7 @@ class QuickJoint(inkex.Effect):
         drawTab = self.featureStart
         newLines = QuickJointPath()
 
-        # First line is a move or line to our start point
+        # First line is a move or line to our start point  
         if isinstance(path[line], Move):
             newLines.Move(cursor)
         else:
@@ -266,16 +272,13 @@ class QuickJoint(inkex.Effect):
                     debugMsg(newPath)
                     debugMsg('4')
                     debugMsg( p[lineNum + 1:])
-                    finalPath = p[:lineNum] + newPath + p[lineNum + 1:]
-                    
+                    finalPath = p[:lineNum + 1] + newPath + p[lineNum + 2:]
+                   
                     debugMsg(finalPath)
                     
                     node.set('d',str(Path(finalPath)))
                 elif self.activetab == 'slotpage':
                     newPath = self.draw_slots(p)
-
-
-        
-                    
+     
 if __name__ == '__main__':
     QuickJoint().run()
